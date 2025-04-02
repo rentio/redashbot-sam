@@ -1,0 +1,13 @@
+{
+  "name": "redashbot-sam",
+  "version": "1.0.0",
+  "description": "Slack bot that takes screenshots of Redash queries and dashboards",
+  "scripts": {
+    "ngrok": "ngrok http 3000",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "sam build && sam local start-api",
+    "deploy:staging": "sam build && sam deploy --config-env staging",
+    "deploy:production": "sam build && sam deploy --config-env production"
+  },
+  "license": "MIT"
+}

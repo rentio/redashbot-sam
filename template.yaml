@@ -1,41 +1,98 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  redashbot-sam
+Description: Redash Screenshot Bot for Slack using Puppeteer
 
-  Sample SAM Template for redashbot-sam
-  
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Parameters:
+  Env:
+    Type: String
+    AllowedValues:
+      - development
+      - staging
+      - production
+  FontconfigPath:
+    Type: String
+  RedashApiKey:
+    Type: String
+  RedashHost:
+    Type: String
+  SlackBotToken:
+    Type: String
+  SlackSigningSecret:
+    Type: String
+  LambdaSecurityGroupId:
+    Type: String
+  LambdaPublicSubnetId:
+    Type: String
+
+Conditions:
+  IsNotDevelopment: !Not
+    - !Equals
+      - !Ref Env
+      - development
+
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 30
+    Runtime: nodejs22.x
+    MemorySize: 1024
+    Environment:
+      Variables:
+        NODE_PATH: ./:/opt/nodejs/node_modules
+        ENV: !Ref Env
+        FONTCONFIG_PATH: !Ref FontconfigPath
+        REDASH_API_KEY: !Ref RedashApiKey
+        REDASH_HOST: !Ref RedashHost
+        SLACK_BOT_TOKEN: !Ref SlackBotToken
+        SLACK_SIGNING_SECRET: !Ref SlackSigningSecret
 
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  RedashBotApi:
+    Type: AWS::Serverless::Api
     Properties:
-      CodeUri: hello-world/
-      Handler: app.lambdaHandler
-      Runtime: nodejs22.x
+      StageName: !Ref Env
+      OpenApiVersion: 3.0.2
+
+  RedashBotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: ./src/handlers
       Architectures:
         - x86_64
+      Layers:
+        - !Ref DependenciesLayer
       Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+        SlackEvents:
+          Type: Api
           Properties:
-            Path: /hello
-            Method: get
+            Path: /slack/events
+            Method: post
+            RestApiId: !Ref RedashBotApi
+      VpcConfig: !If
+        - IsNotDevelopment
+        - SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+          SubnetIds:
+            - !Ref LambdaPublicSubnetId
+        - !Ref AWS::NoValue
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: FunctionUpdate
 
-Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: ./layers/dependencies/nodejs
+      CompatibleRuntimes:
+        - nodejs22.x
+      CompatibleArchitectures:
+        - x86_64
+      Description: Layer for Dependencies
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: nodejs22.x
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${RedashBotFunction}"
+      RetentionInDays: 14

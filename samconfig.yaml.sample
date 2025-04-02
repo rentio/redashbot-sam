@@ -1,0 +1,66 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version: 0.1
+default:
+  global:
+    parameters:
+      stack_name: "redashbot-sam-development"
+      region: "ap-northeast-1"
+  build:
+    parameters:
+      cached: true
+      parallel: true
+      use_container: false
+  validate:
+    parameters:
+      lint: true
+  local_start_api:
+    parameters:
+      parameter_overrides:
+        - Env=development
+        - RedashHost=server:5000
+        - RedashApiKey=
+        - SlackBotToken=
+        - SlackSigningSecret=
+      docker_network: "redashbot-sam_default"
+      warm_containers: "EAGER"
+staging:
+  global:
+    parameters:
+      stack_name: "redashbot-sam-staging"
+      region: "ap-northeast-1"
+  deploy:
+    parameters:
+      capabilities:
+        - CAPABILITY_IAM
+      confirm_changeset: true
+      resolve_s3: true
+      parameter_overrides:
+        - Env=staging
+        - FontconfigPath=/opt/nodejs/fonts
+        - RedashHost=
+        - RedashApiKey=
+        - SlackBotToken=
+        - SlackSigningSecret=
+        - LambdaPublicSubnetId=
+        - LambdaSecurityGroupId=
+production:
+  global:
+    parameters:
+      stack_name: "redashbot-sam-production"
+      region: "ap-northeast-1"
+  deploy:
+    parameters:
+      capabilities:
+        - CAPABILITY_IAM
+      confirm_changeset: true
+      resolve_s3: true
+      parameter_overrides:
+        - Env=production
+        - FontconfigPath=/opt/nodejs/fonts
+        - RedashHost=
+        - RedashApiKey=
+        - SlackBotToken=
+        - SlackSigningSecret=
+        - LambdaPublicSubnetId=
+        - LambdaSecurityGroupId=

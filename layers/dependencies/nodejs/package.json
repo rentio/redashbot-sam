@@ -1,0 +1,11 @@
+{
+  "name": "redashbot-dependencies-layer",
+  "version": "1.0.0",
+  "description": "Layer for dependencies",
+  "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
+    "puppeteer-core": "^24.4.0",
+    "@slack/bolt": "^3.13.1",
+    "axios": "^0.27.2"
+  }
+}
