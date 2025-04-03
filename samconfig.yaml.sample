@@ -37,7 +37,6 @@ staging:
       resolve_s3: true
       parameter_overrides:
         - Env=staging
-        - FontconfigPath=/opt/nodejs/fonts
         - RedashHost=
         - RedashApiKey=
         - SlackBotToken=
@@ -57,7 +56,6 @@ production:
       resolve_s3: true
       parameter_overrides:
         - Env=production
-        - FontconfigPath=/opt/nodejs/fonts
         - RedashHost=
         - RedashApiKey=
         - SlackBotToken=

@@ -9,8 +9,6 @@ Parameters:
       - development
       - staging
       - production
-  FontconfigPath:
-    Type: String
   RedashApiKey:
     Type: String
   RedashHost:
@@ -38,8 +36,8 @@ Globals:
     Environment:
       Variables:
         NODE_PATH: ./:/opt/nodejs/node_modules
+        FONTCONFIG_PATH: /opt/nodejs/fonts
         ENV: !Ref Env
-        FONTCONFIG_PATH: !Ref FontconfigPath
         REDASH_API_KEY: !Ref RedashApiKey
         REDASH_HOST: !Ref RedashHost
         SLACK_BOT_TOKEN: !Ref SlackBotToken
