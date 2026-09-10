@@ -105,9 +105,44 @@ If you want to change the font of the output image, add font file to `. /layers/
 
 ## Deployment
 
+The three secrets (`RedashApiKey`, `SlackBotToken`, `SlackSigningSecret`) are stored in SSM Parameter Store as `SecureString`s instead of `samconfig.yaml`, since this repository is public. `bin/deploy` fetches them at deploy time and merges them with the other `parameter_overrides` in `samconfig.yaml`.
+
+### One-time secrets setup (per environment)
+
+**Register the three secrets in SSM Parameter Store:**
+
+```
+aws ssm put-parameter \
+  --name "<path in SSM Parameter Store>" \
+  --type SecureString \
+  --value "<secret value>" \
+  --region ap-northeast-1
+```
+
+Do this once for each of the three secrets, for each environment (staging/production).
+
+**Set up `ssm-paths.yaml` (local only, gitignored):**
+
+```
+cp ssm-paths.yaml.sample ssm-paths.yaml
+```
+
+Edit it to map each CloudFormation parameter name to the SSM path you registered above, for each environment:
+
+```yaml
+staging:
+  RedashApiKey: "<path in SSM Parameter Store>"
+  SlackBotToken: "<path in SSM Parameter Store>"
+  SlackSigningSecret: "<path in SSM Parameter Store>"
+production:
+  RedashApiKey: "<path in SSM Parameter Store>"
+  SlackBotToken: "<path in SSM Parameter Store>"
+  SlackSigningSecret: "<path in SSM Parameter Store>"
+```
+
 ### Staging
 
-**Edit the `staging` section in samconfig.yaml to set the required environment variables:**
+**Edit the `staging` section in samconfig.yaml (secrets are no longer set here):**
 
 ```
 staging:
@@ -124,9 +159,6 @@ staging:
       parameter_overrides:
         - Env=staging
         - RedashHost=<Redash Host URL>
-        - RedashApiKey=<Redash API Key>
-        - SlackBotToken=<Slack Bot Token>
-        - SlackSigningSecret=<Slack Signing Secret>
         - LambdaPublicSubnetId=<Public Subnet ID>
         - LambdaSecurityGroupId=<Security Group ID>
 ```
@@ -147,7 +179,7 @@ npm run deploy:staging -- --profile <profile>
 
 ### Production
 
-**Edit the `production` section in samconfig.yaml to set the required environment variables:**
+**Edit the `production` section in samconfig.yaml (secrets are no longer set here):**
 
 ```
 production:
@@ -164,9 +196,6 @@ production:
       parameter_overrides:
         - Env=production
         - RedashHost=<Redash Host URL>
-        - RedashApiKey=<Redash API Key>
-        - SlackBotToken=<Slack Bot Token>
-        - SlackSigningSecret=<Slack Signing Secret>
         - LambdaPublicSubnetId=<Public Subnet ID>
         - LambdaSecurityGroupId=<Security Group ID>
 ```
