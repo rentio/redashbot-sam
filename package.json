@@ -6,8 +6,8 @@
     "ngrok": "ngrok http 3000",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "sam build && sam local start-api",
-    "deploy:staging": "sam build && sam deploy --config-env staging",
-    "deploy:production": "sam build && sam deploy --config-env production"
+    "deploy:staging": "./bin/deploy staging",
+    "deploy:production": "./bin/deploy production"
   },
   "license": "MIT"
 }
