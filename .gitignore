@@ -1,5 +1,6 @@
 .aws-sam
 node_modules
 samconfig.yaml
+ssm-paths.yaml
 layers/dependencies/nodejs/fonts/*
 !layers/dependencies/nodejs/fonts/fonts.conf

@@ -1,0 +1,12 @@
+# Maps each CloudFormation parameter name to its SSM Parameter Store path, read by bin/deploy.
+# This file is committed to the (public) repository, so it must not contain the real paths.
+# Copy it to ssm-paths.yaml (gitignored) and fill in the real paths locally:
+#   cp ssm-paths.yaml.sample ssm-paths.yaml
+staging:
+  RedashApiKey: ""
+  SlackBotToken: ""
+  SlackSigningSecret: ""
+production:
+  RedashApiKey: ""
+  SlackBotToken: ""
+  SlackSigningSecret: ""
