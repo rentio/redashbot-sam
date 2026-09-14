@@ -1,0 +1,108 @@
+#!/bin/bash
+set -euo pipefail
+
+usage_exit() {
+  echo "Usage: $0 <staging|production> [sam deploy options...]" 1>&2
+  echo "  e.g. $0 staging --profile myprofile" 1>&2
+  exit 1
+}
+
+env="${1:-}"
+case "${env}" in
+  staging|production) ;;
+  *) usage_exit ;;
+esac
+shift
+
+if [[ ! -f ssm-paths.yaml ]]; then
+  echo "ssm-paths.yaml not found. Run 'cp ssm-paths.yaml.sample ssm-paths.yaml' and fill in the SSM paths." 1>&2
+  exit 1
+fi
+
+# layers/dependencies/nodejs/package.json pins puppeteer-core and @sparticuz/chromium with
+# caret ranges and no lockfile, so `sam build`'s cache can keep reusing a version resolved
+# long ago (observed: a cached puppeteer-core install over a year old). Deploys always
+# rebuild from scratch to avoid silently shipping stale, potentially mismatched versions.
+sam build --no-cached
+
+# If --profile is passed through, use the same profile when calling SSM.
+profile_args=()
+prev=""
+for arg in "$@"; do
+  if [[ "${prev}" == "--profile" ]]; then
+    profile_args=(--profile "${arg}")
+  fi
+  prev="${arg}"
+done
+
+# Read the non-secret parameter_overrides (Env / RedashHost / subnet ID / security group ID)
+# for this env from samconfig.yaml. --parameter-overrides replaces the whole list rather than
+# merging it with samconfig.yaml's values, so we need to rebuild the non-secret values here too.
+non_secret_overrides="$(
+  awk -v env="${env}" '
+    $0 ~ "^"env":" { in_env=1; next }
+    in_env && /^[a-zA-Z]/ { in_env=0 }
+    in_env && /parameter_overrides:/ { in_list=1; next }
+    in_env && in_list && /^ {8}- / {
+      line=$0
+      sub(/^ *- */, "", line)
+      if (line !~ /^(RedashApiKey|SlackBotToken|SlackSigningSecret)=/) print line
+      next
+    }
+    in_env && in_list && !/^ {8}- / { in_list=0 }
+  ' samconfig.yaml
+)"
+
+if [[ -z "${non_secret_overrides}" ]]; then
+  echo "Failed to read ${env}'s parameter_overrides from samconfig.yaml" 1>&2
+  exit 1
+fi
+
+overrides=()
+while IFS= read -r line; do
+  [[ -n "${line}" ]] && overrides+=("${line}")
+done <<< "${non_secret_overrides}"
+
+# Look up the SSM Parameter Store path for a given CloudFormation parameter name,
+# from ssm-paths.yaml (gitignored; the only place actual paths live).
+read_ssm_path() {
+  local param_key="$1"
+  awk -v env="${env}" -v key="${param_key}" '
+    $0 ~ "^"env":" { in_env=1; next }
+    in_env && /^[a-zA-Z]/ { in_env=0 }
+    in_env && $0 ~ "^  "key":" {
+      line=$0
+      sub("^  "key": *", "", line)
+      gsub(/^"|"$/, "", line)
+      print line
+    }
+  ' ssm-paths.yaml
+}
+
+# Fetch and decrypt the three secrets from SSM Parameter Store.
+for param_key in RedashApiKey SlackBotToken SlackSigningSecret; do
+  ssm_path="$(read_ssm_path "${param_key}")"
+  if [[ -z "${ssm_path}" ]]; then
+    echo "No path for ${env}.${param_key} in ssm-paths.yaml" 1>&2
+    exit 1
+  fi
+
+  value="$(
+    aws ssm get-parameter \
+      --name "${ssm_path}" \
+      --with-decryption \
+      --query 'Parameter.Value' \
+      --output text \
+      --region ap-northeast-1 \
+      "${profile_args[@]+"${profile_args[@]}"}"
+  )" || { echo "Failed to fetch ${param_key} (${ssm_path}) from SSM" 1>&2; exit 1; }
+
+  if [[ -z "${value}" ]]; then
+    echo "${param_key} is empty" 1>&2
+    exit 1
+  fi
+
+  overrides+=("${param_key}=${value}")
+done
+
+sam deploy --config-env "${env}" --parameter-overrides "${overrides[@]}" "$@"

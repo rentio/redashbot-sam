@@ -11,12 +11,15 @@ Parameters:
       - production
   RedashApiKey:
     Type: String
+    NoEcho: true
   RedashHost:
     Type: String
   SlackBotToken:
     Type: String
+    NoEcho: true
   SlackSigningSecret:
     Type: String
+    NoEcho: true
   LambdaSecurityGroupId:
     Type: String
   LambdaPublicSubnetId:

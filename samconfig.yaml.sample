@@ -38,9 +38,6 @@ staging:
       parameter_overrides:
         - Env=staging
         - RedashHost=
-        - RedashApiKey=
-        - SlackBotToken=
-        - SlackSigningSecret=
         - LambdaPublicSubnetId=
         - LambdaSecurityGroupId=
 production:
@@ -57,8 +54,5 @@ production:
       parameter_overrides:
         - Env=production
         - RedashHost=
-        - RedashApiKey=
-        - SlackBotToken=
-        - SlackSigningSecret=
         - LambdaPublicSubnetId=
         - LambdaSecurityGroupId=
