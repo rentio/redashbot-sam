@@ -76,8 +76,6 @@ Resources:
           SubnetIds:
             - !Ref LambdaPublicSubnetId
         - !Ref AWS::NoValue
-      RuntimeManagementConfig:
-        UpdateRuntimeOn: FunctionUpdate
 
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
