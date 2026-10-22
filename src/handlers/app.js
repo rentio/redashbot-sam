@@ -89,7 +89,7 @@ const uploadScreenShot = async ({ client, body }) => {
 
 app.event('app_mention', async ({ client, body, say }) => {
   if (body['event']['text'].includes('ping')) {
-    await say('pong :table_tennis_paddle_and_ball:')
+    await say(`pong :table_tennis_paddle_and_ball: (Node.js ${process.version})`)
   } else {
     await uploadScreenShot({ client, body })
   }
