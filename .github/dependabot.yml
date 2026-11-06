@@ -1,0 +1,22 @@
+version: 2
+updates:
+- package-ecosystem: npm
+  directory: "/layers/dependencies/nodejs"
+  schedule:
+    interval: weekly
+    day: "wednesday"
+    time: "08:00"
+    timezone: Asia/Tokyo
+  cooldown:
+    default-days: 7
+    semver-major-days: 30
+  groups:
+    # @sparticuz/chromium ships the Chromium build that puppeteer-core expects, so update them together
+    puppeteer:
+      patterns: ["puppeteer-core", "@sparticuz/chromium"]
+    minor-dependencies:
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
+  open-pull-requests-limit: 10
+  # No lockfile, so bump the ranges in package.json
+  versioning-strategy: increase
