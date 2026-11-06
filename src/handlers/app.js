@@ -1,6 +1,5 @@
 const { App, LogLevel, AwsLambdaReceiver } = require('@slack/bolt')
 const chromium = require("@sparticuz/chromium")
-const axios = require('axios')
 const puppeteer = require("puppeteer-core")
 
 chromium.setHeadlessMode = true
@@ -21,15 +20,20 @@ const app = new App({
   logLevel: LogLevel.DEBUG,
 })
 
-const getQuery = async (queryId) => {
-  const res = await axios.get(`${protocol}://${redashHost}/api/queries/${queryId}?api_key=${process.env.REDASH_API_KEY}`)
-  return res.data
+// Send the API key in the Authorization header, not in the URL, so it doesn't end up in access logs.
+const getRedashApi = async (path) => {
+  const res = await fetch(`${protocol}://${redashHost}${path}`, {
+    headers: { Authorization: `Key ${process.env.REDASH_API_KEY}` },
+  })
+  if (!res.ok) {
+    throw new Error(`Redash API error: ${res.status} ${path}`)
+  }
+  return res.json()
 }
 
-const getDashboard = async (dashboardId) => {
-  const res = await axios.get(`${protocol}://${redashHost}/api/dashboards/${dashboardId}?api_key=${process.env.REDASH_API_KEY}`)
-  return res.data
-}
+const getQuery = (queryId) => getRedashApi(`/api/queries/${queryId}`)
+
+const getDashboard = (dashboardId) => getRedashApi(`/api/dashboards/${dashboardId}`)
 
 const uploadScreenShot = async ({ client, body }) => {
   const browser = await puppeteer.launch({
@@ -48,12 +52,26 @@ const uploadScreenShot = async ({ client, body }) => {
   let filePath
   let originalUrl
 
+  const page = await browser.newPage()
+  page.setViewport({ width: 1024, height: 480 })
+
   if (text.match(queryRegex)) {
     const matches = text.match(queryRegex)
     const queryId = matches[1]
     const query = await getQuery(queryId)
     const visualizationId = matches[2] || query.visualizations[0].id
-    embedUrl = `${protocol}://${redashHost}/embed/query/${queryId}/visualization/${visualizationId}?api_key=${process.env.REDASH_API_KEY}`
+    embedUrl = `${protocol}://${redashHost}/embed/query/${queryId}/visualization/${visualizationId}`
+    // Pass the API key as a header, and only on requests to Redash (not to any other host the page may load)
+    await page.setRequestInterception(true)
+    page.on('request', (request) => {
+      if (new URL(request.url()).host === redashHost) {
+        request.continue({
+          headers: { ...request.headers(), Authorization: `Key ${process.env.REDASH_API_KEY}` },
+        })
+      } else {
+        request.continue()
+      }
+    })
     fileName = query.name
     filePath = `/tmp/${fileName}.png`
     originalUrl = matches[0]
@@ -69,8 +87,6 @@ const uploadScreenShot = async ({ client, body }) => {
     throw('Invalid URL')
   }
 
-  const page = await browser.newPage()
-  page.setViewport({ width: 1024, height: 480 })
   await page.goto(embedUrl)
   await page.waitForResponse(response => response.request().url().includes('/results'));
   await new Promise(r => setTimeout(r, 5000));
