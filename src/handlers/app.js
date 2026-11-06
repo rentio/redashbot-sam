@@ -35,7 +35,7 @@ const getQuery = (queryId) => getRedashApi(`/api/queries/${queryId}`)
 
 const getDashboard = (dashboardId) => getRedashApi(`/api/dashboards/${dashboardId}`)
 
-const uploadScreenShot = async ({ client, body }) => {
+const uploadScreenShot = async ({ client, body, record }) => {
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
@@ -58,8 +58,11 @@ const uploadScreenShot = async ({ client, body }) => {
   if (text.match(queryRegex)) {
     const matches = text.match(queryRegex)
     const queryId = matches[1]
+    record.target_type = 'query'
+    record.target_id = queryId
     const query = await getQuery(queryId)
     const visualizationId = matches[2] || query.visualizations[0].id
+    record.visualization_id = String(visualizationId)
     embedUrl = `${protocol}://${redashHost}/embed/query/${queryId}/visualization/${visualizationId}`
     // Pass the API key as a header, and only on requests to Redash (not to any other host the page may load)
     await page.setRequestInterception(true)
@@ -79,6 +82,8 @@ const uploadScreenShot = async ({ client, body }) => {
   } else if (text.match(dashboardRegex)) {
     const matches = text.match(dashboardRegex)
     const dashboardId = matches[1]
+    record.target_type = 'dashboard'
+    record.target_id = dashboardId
     const dashboard = await getDashboard(dashboardId)
     embedUrl = dashboard.public_url
     fileName = dashboard.name
@@ -108,7 +113,23 @@ app.event('app_mention', async ({ client, body, say }) => {
   if (body['event']['text'].includes('ping')) {
     await say(`pong :table_tennis_paddle_and_ball: (Node.js ${process.version})`)
   } else {
-    await uploadScreenShot({ client, body })
+    // One line per screenshot: who took what, and whether it worked. Uses console.log so it is
+    // written regardless of Bolt's logLevel. Never put the API key, URLs or the message text here.
+    const record = {
+      event: 'redash_screenshot',
+      user: body['event']['user'],
+      channel: body['event']['channel'],
+      target_type: null,
+      target_id: null,
+      visualization_id: null,
+    }
+    try {
+      await uploadScreenShot({ client, body, record })
+      console.log(JSON.stringify({ ...record, result: 'success' }))
+    } catch (e) {
+      console.log(JSON.stringify({ ...record, result: 'failure', error: e instanceof Error ? e.message : String(e) }))
+      throw e
+    }
   }
 })
 
