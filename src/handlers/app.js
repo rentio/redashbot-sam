@@ -73,7 +73,8 @@ const uploadScreenShot = async ({ client, body }) => {
       }
     })
     fileName = query.name
-    filePath = `/tmp/${fileName}.png`
+    // Build the path from IDs, not from the name (names can contain "/" or "../")
+    filePath = `/tmp/query-${queryId}-${visualizationId}.png`
     originalUrl = matches[0]
   } else if (text.match(dashboardRegex)) {
     const matches = text.match(dashboardRegex)
@@ -81,7 +82,7 @@ const uploadScreenShot = async ({ client, body }) => {
     const dashboard = await getDashboard(dashboardId)
     embedUrl = dashboard.public_url
     fileName = dashboard.name
-    filePath = `/tmp/${fileName}.png`
+    filePath = `/tmp/dashboard-${dashboardId}.png`
     originalUrl = matches[0]
   } else {
     throw('Invalid URL')
