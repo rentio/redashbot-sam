@@ -17,7 +17,7 @@ const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   receiver: awsLambdaReceiver,
   processBeforeResponse: false,
-  logLevel: LogLevel.DEBUG,
+  logLevel: LogLevel.INFO,
 })
 
 // Send the API key in the Authorization header, not in the URL, so it doesn't end up in access logs.
