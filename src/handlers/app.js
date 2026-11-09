@@ -36,13 +36,6 @@ const getQuery = (queryId) => getRedashApi(`/api/queries/${queryId}`)
 const getDashboard = (dashboardId) => getRedashApi(`/api/dashboards/${dashboardId}`)
 
 const uploadScreenShot = async ({ client, body, record }) => {
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: true
-  })
-
   const text = body['event']['text']
   const queryRegex = new RegExp(`${protocol}://${redashHost}/queries/([0-9]+)(?:#([0-9]+))?`)
   const dashboardRegex = new RegExp(`${protocol}://${redashHost}/dashboards/([0-9]+)-[0-9a-z_-]+`)
@@ -52,53 +45,64 @@ const uploadScreenShot = async ({ client, body, record }) => {
   let filePath
   let originalUrl
 
-  const page = await browser.newPage()
-  page.setViewport({ width: 1024, height: 480 })
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: true
+  })
 
-  if (text.match(queryRegex)) {
-    const matches = text.match(queryRegex)
-    const queryId = matches[1]
-    record.target_type = 'query'
-    record.target_id = queryId
-    const query = await getQuery(queryId)
-    const visualizationId = matches[2] || query.visualizations[0].id
-    record.visualization_id = String(visualizationId)
-    embedUrl = `${protocol}://${redashHost}/embed/query/${queryId}/visualization/${visualizationId}`
-    // Pass the API key as a header, and only on requests to Redash (not to any other host the page may load)
-    await page.setRequestInterception(true)
-    page.on('request', (request) => {
-      if (new URL(request.url()).host === redashHost) {
-        request.continue({
-          headers: { ...request.headers(), Authorization: `Key ${process.env.REDASH_API_KEY}` },
-        })
-      } else {
-        request.continue()
-      }
-    })
-    fileName = query.name
-    // Build the path from IDs, not from the name (names can contain "/" or "../")
-    filePath = `/tmp/query-${queryId}-${visualizationId}.png`
-    originalUrl = matches[0]
-  } else if (text.match(dashboardRegex)) {
-    const matches = text.match(dashboardRegex)
-    const dashboardId = matches[1]
-    record.target_type = 'dashboard'
-    record.target_id = dashboardId
-    const dashboard = await getDashboard(dashboardId)
-    embedUrl = dashboard.public_url
-    fileName = dashboard.name
-    filePath = `/tmp/dashboard-${dashboardId}.png`
-    originalUrl = matches[0]
-  } else {
-    throw('Invalid URL')
+  // Always close Chromium, even on failure. Lambda reuses the execution environment,
+  // so a browser left running would pile up across invocations.
+  try {
+    const page = await browser.newPage()
+    page.setViewport({ width: 1024, height: 480 })
+
+    if (text.match(queryRegex)) {
+      const matches = text.match(queryRegex)
+      const queryId = matches[1]
+      record.target_type = 'query'
+      record.target_id = queryId
+      const query = await getQuery(queryId)
+      const visualizationId = matches[2] || query.visualizations[0].id
+      record.visualization_id = String(visualizationId)
+      embedUrl = `${protocol}://${redashHost}/embed/query/${queryId}/visualization/${visualizationId}`
+      // Pass the API key as a header, and only on requests to Redash (not to any other host the page may load)
+      await page.setRequestInterception(true)
+      page.on('request', (request) => {
+        if (new URL(request.url()).host === redashHost) {
+          request.continue({
+            headers: { ...request.headers(), Authorization: `Key ${process.env.REDASH_API_KEY}` },
+          })
+        } else {
+          request.continue()
+        }
+      })
+      fileName = query.name
+      // Build the path from IDs, not from the name (names can contain "/" or "../")
+      filePath = `/tmp/query-${queryId}-${visualizationId}.png`
+      originalUrl = matches[0]
+    } else if (text.match(dashboardRegex)) {
+      const matches = text.match(dashboardRegex)
+      const dashboardId = matches[1]
+      record.target_type = 'dashboard'
+      record.target_id = dashboardId
+      const dashboard = await getDashboard(dashboardId)
+      embedUrl = dashboard.public_url
+      fileName = dashboard.name
+      filePath = `/tmp/dashboard-${dashboardId}.png`
+      originalUrl = matches[0]
+    } else {
+      throw('Invalid URL')
+    }
+
+    await page.goto(embedUrl)
+    await page.waitForResponse(response => response.request().url().includes('/results'));
+    await new Promise(r => setTimeout(r, 5000));
+    await page.screenshot({ fullPage: true, path: filePath })
+  } finally {
+    await browser.close()
   }
-
-  await page.goto(embedUrl)
-  await page.waitForResponse(response => response.request().url().includes('/results'));
-  await new Promise(r => setTimeout(r, 5000));
-  await page.screenshot({ fullPage: true, path: filePath })
-
-  await browser.close()
 
   await client.filesUploadV2({
     channel_id: body['event']['channel'],
