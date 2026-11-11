@@ -86,7 +86,8 @@ const uploadScreenShot = async ({ client, body }) => {
   ).catch(error => console.warn('Screenshot before rendering finished:', error.message))
   // charts and table auto-height finish a little after the data is shown
   await new Promise(r => setTimeout(r, 1000))
-  await page.screenshot({ fullPage: true, path: filePath })
+  // with the default captureBeyondViewport, Chromium briefly resizes the page to 1x1 while capturing, and the dashboard switches to its single column layout
+  await page.screenshot({ fullPage: true, captureBeyondViewport: false, path: filePath })
 
   await browser.close()
 
