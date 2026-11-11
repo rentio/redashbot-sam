@@ -74,13 +74,13 @@ const uploadScreenShot = async ({ client, body }) => {
   }
 
   const page = await browser.newPage()
-  page.setViewport({ width: 1024, height: 480 })
+  await page.setViewport({ width: 1024, height: 480 })
   await page.goto(embedUrl)
   // Since Redash 26.11, dashboards measure their width before placing widgets, so wait for the widgets instead of a fixed delay
   await page.waitForFunction((widgets, visualizations) =>
     document.querySelectorAll('.dashboard-widget-wrapper').length >= widgets &&
     document.querySelectorAll('.visualization-renderer, .alert-danger').length >= visualizations &&
-    !document.querySelector('.spinner, .refresh-indicator') &&
+    !Array.from(document.querySelectorAll('.spinner, .refresh-indicator')).some(indicator => indicator.checkVisibility()) &&
     Array.from(document.images).every(image => image.complete),
     { timeout: 20000 }, expectedWidgets, expectedVisualizations
   ).catch(error => console.warn('Screenshot before rendering finished:', error.message))
