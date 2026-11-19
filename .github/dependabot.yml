@@ -9,7 +9,7 @@ updates:
     timezone: Asia/Tokyo
   cooldown:
     default-days: 7
-    semver-major-days: 30
+    semver-major-days: 14
   groups:
     # @sparticuz/chromium ships the Chromium build that puppeteer-core expects, so update them together
     puppeteer:
