@@ -1,9 +1,22 @@
 const { App, LogLevel, AwsLambdaReceiver } = require('@slack/bolt')
-const chromium = require("@sparticuz/chromium")
-const puppeteer = require("puppeteer-core")
 
-chromium.setHeadlessMode = true
-chromium.setGraphicsMode = false
+// @sparticuz/chromium and puppeteer-core are published as ES Modules, so they can't be
+// require()d from this CommonJS handler. Load them with a dynamic import() the first time they
+// are needed and cache the promise, so a warm Lambda execution environment imports them once.
+let browserDepsPromise
+const getBrowserDeps = () => {
+  if (!browserDepsPromise) {
+    browserDepsPromise = Promise.all([
+      import("@sparticuz/chromium"),
+      import("puppeteer-core"),
+    ]).then(([{ default: chromium }, { default: puppeteer }]) => {
+      chromium.setHeadlessMode = true
+      chromium.setGraphicsMode = false
+      return { chromium, puppeteer }
+    })
+  }
+  return browserDepsPromise
+}
 
 const awsLambdaReceiver = new AwsLambdaReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -47,6 +60,7 @@ const uploadScreenShot = async ({ client, body, record }) => {
   let expectedWidgets = 0
   let expectedVisualizations = 1
 
+  const { chromium, puppeteer } = await getBrowserDeps()
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
